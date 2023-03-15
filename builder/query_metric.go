@@ -41,11 +41,11 @@ const (
 type QueryMetric interface {
 	// Add a map of tags. This narrows the query to only show data points
 	// associated with the tags' values.
-	AddTags(tags map[string]string) QueryMetric
+	AddTags(tags interface{}) QueryMetric
 
 	// Adds a tag with multiple values. This narrows the query to only show
 	// data points associated with the tag's values.
-	AddTag(name string, val string) QueryMetric
+	AddTag(name string, val interface{}) QueryMetric
 
 	// Adds an aggregator to the metric.
 	AddAggregator(aggr Aggregator) QueryMetric
@@ -65,7 +65,7 @@ type QueryMetric interface {
 }
 
 type qMetric struct {
-	Tags        map[string]string `json:"tags,omitempty"`
+	Tags        map[string][]string `json:"tags,omitempty"`
 	Name        string            `json:"name,omitempty"`
 	Limit       int               `json:"limit,omitempty"`
 	GroupBy   []Grouper         `json:"group_by,omitempty"`
@@ -76,22 +76,35 @@ type qMetric struct {
 func NewQueryMetric(name string) QueryMetric {
 	return &qMetric{
 		Name:        name,
-		Tags:        make(map[string]string),
+		Tags:        make(map[string][]string),
 		GroupBy:     make([]Grouper, 0),
 		Aggregators: make([]Aggregator, 0),
 	}
 }
 
-func (qm *qMetric) AddTags(tags map[string]string) QueryMetric {
-	for k, v := range tags {
-		qm.Tags[k] = v
+func (qm *qMetric) AddTags(tags interface{}) QueryMetric {
+	if values, ok := tags.(map[string]string); ok {
+		for k, v := range values {
+			qm.Tags[k] = []string{v}
+		}
+	}
+
+	if  values, ok := tags.(map[string][]string); ok {
+		for k, v := range values {
+			qm.Tags[k] = v
+		}
 	}
 
 	return qm
 }
 
-func (qm *qMetric) AddTag(name string, value string) QueryMetric {
-	qm.Tags[name] = value
+func (qm *qMetric) AddTag(name string, value interface{}) QueryMetric {
+	if v, ok := value.(string); ok {
+		qm.Tags[name] = []string{v}
+	}
+	if v, ok := value.([]string); ok {
+		qm.Tags[name] = v
+	}
 	return qm
 }
 
@@ -124,7 +137,7 @@ func (qm *qMetric) Validate() error {
 	for k, v := range qm.Tags {
 		if k == "" {
 			return ErrorQMetricTagNameInvalid
-		} else if v == "" {
+		} else if v == nil {
 			return ErrorQMetricTagValueInvalid
 		}
 	}
